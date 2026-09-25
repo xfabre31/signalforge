@@ -1,0 +1,15 @@
+.DS_Store
+.idea/
+.vscode/*.log
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+frontend/.venv/
+backend/signalforge.db
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+frontend/vite.config.js
+frontend/vite.config.d.ts
+.env
