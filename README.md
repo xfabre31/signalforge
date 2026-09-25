@@ -1,4 +1,4 @@
-# SignalForge 0.1
+# SignalForge v 0.1.0
 
 SignalForge is a local-first prototype of a real-time software reliability dashboard. It accepts telemetry events through a FastAPI API, stores them in SQLite, broadcasts new events over WebSockets, and displays live service health in a React + TypeScript dashboard.
 
@@ -119,18 +119,8 @@ Then open <http://localhost:5173>.
 | `POST` | `/api/demo/reset` | Reset the database to deterministic demo data |
 | `WS` | `/ws/events` | Stream newly ingested events |
 
-## Suggested build order after this baseline
-
-1. Replace SQLite with PostgreSQL and add migrations.
-2. Add API keys and project/workspace isolation.
-3. Move ingestion into Redis Streams or Kafka workers.
-4. Add statistically grounded anomaly detection.
-5. Add incident creation, acknowledgements, and notifications.
-6. Build evidence-grounded AI incident summaries.
-7. Deploy, load test, and publish measured p95 latency and throughput.
 
 ## GitHub first commit
-
 ```bash
 git init
 git add .
