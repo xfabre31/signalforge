@@ -26,7 +26,7 @@ class ConnectionManager:
         for connection in self.connections:
             try:
                 await connection.send_json(event)
-            except RuntimeError:
+            except (RuntimeError, OSError, WebSocketDisconnect):
                 disconnected.append(connection)
         for connection in disconnected:
             self.disconnect(connection)
@@ -44,7 +44,7 @@ async def lifespan(_: FastAPI):
 app = FastAPI(
     title="SignalForge API",
     description="Telemetry ingestion and real-time reliability monitoring prototype.",
-    version="0.1.0",
+    version="0.1.1",
     lifespan=lifespan,
 )
 
@@ -131,7 +131,11 @@ async def events_socket(websocket: WebSocket) -> None:
     await manager.connect(websocket)
     try:
         while True:
-            await websocket.receive_text()
+            message = await websocket.receive_text()
+            if message == "ping":
+                await websocket.send_json({"type": "pong"})
     except WebSocketDisconnect:
+        pass
+    finally:
         manager.disconnect(websocket)
 

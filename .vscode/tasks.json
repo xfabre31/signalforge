@@ -4,37 +4,54 @@
     {
       "label": "Setup: Python",
       "type": "shell",
-      "command": "python3.12 -m venv .venv && .venv/bin/python -m pip install -r backend/requirements.txt",
-      "problemMatcher": []
+      "command": "python3.12 -m venv .venv && .venv/bin/python -m pip install -r backend/requirements.txt && .venv/bin/python -m pip install --force-reinstall --no-deps uvicorn==0.35.0",
+      "problemMatcher": [],
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
     },
     {
       "label": "Setup: Frontend",
       "type": "shell",
       "command": "npm install",
-      "options": { "cwd": "${workspaceFolder}/frontend" },
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
       "problemMatcher": []
     },
     {
       "label": "Setup: Full project",
-      "dependsOn": ["Setup: Python", "Setup: Frontend"],
+      "dependsOn": [
+        "Setup: Python",
+        "Setup: Frontend"
+      ],
       "dependsOrder": "parallel",
       "problemMatcher": []
     },
     {
       "label": "Dev: API",
       "type": "shell",
-      "command": ".venv/bin/uvicorn app.main:app --reload --app-dir backend",
+      "command": ".venv/bin/python -m uvicorn app.main:app --reload --app-dir backend --host 127.0.0.1 --port 8000",
       "isBackground": true,
       "problemMatcher": {
         "owner": "signalforge",
-        "pattern": { "regexp": "^(.*)$", "message": 1 },
+        "pattern": {
+          "regexp": "^(.*)$",
+          "message": 1
+        },
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*Uvicorn running.*",
           "endsPattern": ".*Application startup complete.*"
         }
       },
-      "presentation": { "panel": "dedicated", "group": "dev" }
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev"
+      },
+      "options": {
+        "cwd": "${workspaceFolder}"
+      }
     },
     {
       "label": "Dev: Dashboard",
@@ -44,18 +61,27 @@
       "isBackground": true,
       "problemMatcher": {
         "owner": "signalforge",
-        "pattern": { "regexp": "^(.*)$", "message": 1 },
+        "pattern": {
+          "regexp": "^(.*)$",
+          "message": 1
+        },
         "background": {
           "activeOnStart": true,
           "beginsPattern": ".*VITE.*",
           "endsPattern": ".*Local:.*"
         }
       },
-      "presentation": { "panel": "dedicated", "group": "dev" }
+      "presentation": {
+        "panel": "dedicated",
+        "group": "dev"
+      }
     },
     {
       "label": "Dev: SignalForge",
-      "dependsOn": ["Dev: API", "Dev: Dashboard"],
+      "dependsOn": [
+        "Dev: API",
+        "Dev: Dashboard"
+      ],
       "dependsOrder": "parallel",
       "problemMatcher": []
     },
@@ -67,4 +93,3 @@
     }
   ]
 }
-

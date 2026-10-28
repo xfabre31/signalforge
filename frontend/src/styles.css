@@ -80,3 +80,5 @@ td { color: #bdc7d6; font-size: 0.82rem; padding: 13px 12px; border-bottom: 1px 
 .window-control { display: flex; align-items: center; gap: 12px; margin-bottom: 18px; }
 .event-panel { margin-bottom: 24px; }
 button:disabled { opacity: .5; cursor: wait; }
+
+.live-status { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; color: #9aa8bf; }

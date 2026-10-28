@@ -3,6 +3,7 @@
 setup:
 	python3.12 -m venv .venv
 	.venv/bin/python -m pip install -r backend/requirements.txt
+	.venv/bin/python -m pip install --force-reinstall --no-deps uvicorn==0.35.0
 	cd frontend && npm install
 
 test:

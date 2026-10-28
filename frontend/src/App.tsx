@@ -17,6 +17,7 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+import { startLiveUpdates, type LiveStatus } from "./live";
 import type { DashboardSummary, TelemetryEvent, Incident } from "./types";
 
 const emptySummary: DashboardSummary = {
@@ -41,7 +42,9 @@ function App() {
   const [summary, setSummary] = useState<DashboardSummary>(emptySummary);
   const [events, setEvents] = useState<TelemetryEvent[]>([]);
   const [selectedService, setSelectedService] = useState("all");
-  const [connected, setConnected] = useState(false);
+  const [connection, setConnection] = useState<LiveStatus>("connecting");
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const reconnect = useRef<() => void>(() => {});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -54,15 +57,16 @@ function App() {
     const id = ++requestId.current;
     try {
       const [summaryResponse, incidentsResponse, eventsResponse] = await Promise.all([
-        fetch(`/api/summary?window_minutes=${windowMinutes}`),
-        fetch("/api/incidents"),
-        fetch("/api/events?limit=60"),
+        fetch(`/api/summary?window_minutes=${windowMinutes}`, { signal: AbortSignal.timeout(10000) }),
+        fetch("/api/incidents", { signal: AbortSignal.timeout(10000) }),
+        fetch("/api/events?limit=60", { signal: AbortSignal.timeout(10000) }),
       ]);
       if (!summaryResponse.ok || !eventsResponse.ok || !incidentsResponse.ok) throw new Error("The API did not respond successfully.");
       const [nextSummary, nextIncidents, nextEvents] = await Promise.all([
         summaryResponse.json(), incidentsResponse.json(), eventsResponse.json(),
       ]);
       if (id !== requestId.current) return;
+      setLastUpdated(new Date());
       setSummary(nextSummary);
       setIncidents(nextIncidents);
       setEvents(nextEvents);
@@ -77,14 +81,25 @@ function App() {
 
   useEffect(() => {
     const requests = requestId;
-    void loadDashboard();
     const protocol = window.location.protocol === "https:" ? "wss" : "ws";
-    const socket = new WebSocket(`${protocol}://${window.location.host}/ws/events`);
-    socket.onopen = () => setConnected(true);
-    socket.onclose = () => setConnected(false);
-    socket.onmessage = () => { void loadDashboard(); };
-    const timer = window.setInterval(() => { void loadDashboard(); }, 15000);
-    return () => { ++requests.current; window.clearInterval(timer); socket.close(); };
+    const live = startLiveUpdates({
+      url: `${protocol}://${window.location.host}/ws/events`,
+      onStatus: setConnection,
+      refresh: loadDashboard,
+    });
+    reconnect.current = live.reconnect;
+    const resume = () => live.reconnect();
+    const visible = () => { if (document.visibilityState === "visible") live.reconnect(); };
+    window.addEventListener("online", resume);
+    window.addEventListener("offline", resume);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      ++requests.current;
+      live.stop();
+      window.removeEventListener("online", resume);
+      window.removeEventListener("offline", resume);
+      document.removeEventListener("visibilitychange", visible);
+    };
   }, [loadDashboard]);
 
 
@@ -119,8 +134,8 @@ function App() {
           <strong>SignalForge</strong>
           <span>Reliability console</span>
         </div>
-        <div className={`connection ${connected ? "online" : "offline"}`}>
-          <Radio size={15} /> {connected ? "Live stream connected" : "Reconnecting"}
+        <div className={`connection ${connection === "live" ? "online" : "offline"}`}>
+          <Radio size={15} /> <span role="status">{{ live: "Live stream connected", connecting: "Connecting…", reconnecting: "Reconnecting automatically…", offline: "Offline" }[connection]}</span>
         </div>
       </header>
 
@@ -131,11 +146,16 @@ function App() {
             <h1>System health</h1>
             <p>Monitor request latency and failures across every service.</p>
           </div>
-          <button className="secondary-button" disabled={pending} onClick={() => void mutate("/api/demo/reset")}><RefreshCw size={16} /> Reset demo</button>
+          <button className="secondary-button" disabled={pending || connection === "offline"} onClick={() => void mutate("/api/demo/reset")}><RefreshCw size={16} /> Reset demo</button>
         </section>
 
         {error && <div className="error-banner"><AlertTriangle size={18} /> {error}</div>}
 
+        <div className="live-status" role="status">
+          <span>{lastUpdated ? `Last refreshed ${lastUpdated.toLocaleTimeString()}` : loading ? "Loading dashboard…" : "Waiting for API data."}
+            {(error || connection !== "live") && lastUpdated ? " · Showing last available data; updates may be delayed." : ""}</span>
+          <button className="secondary-button" onClick={() => reconnect.current()}>Reconnect now</button>
+        </div>
         <label className="window-control">Metrics window <select aria-label="Metrics window" value={windowMinutes} onChange={(event) => { setLoading(true); setWindowMinutes(Number(event.target.value)); }}>
           <option value={15}>Last 15 minutes</option><option value={60}>Last hour</option><option value={1440}>Last 24 hours</option>
         </select></label>
@@ -190,7 +210,7 @@ function App() {
             <tbody>{incidents.map((incident) => <tr key={incident.id}>
               <td>{incident.status}</td><td>{incident.service}</td><td>{incident.message}</td><td>{incident.error_count}</td>
               <td>{new Date(incident.last_seen_at).toLocaleString()}</td>
-              <td>{incident.status !== "resolved" && <button className="secondary-button" disabled={pending} onClick={() => void mutate(`/api/incidents/${incident.id}`, incident.status === "open" ? "acknowledged" : "resolved")}>
+              <td>{incident.status !== "resolved" && <button className="secondary-button" disabled={pending || connection === "offline"} onClick={() => void mutate(`/api/incidents/${incident.id}`, incident.status === "open" ? "acknowledged" : "resolved")}>
                 {incident.status === "open" ? "Acknowledge" : "Resolve"}
               </button>}</td>
             </tr>)}</tbody>
@@ -203,6 +223,7 @@ function App() {
             <table>
               <thead><tr><th>Status</th><th>Service</th><th>Message</th><th>Latency</th><th>Time</th></tr></thead>
               <tbody>
+                {!visibleEvents.length && <tr><td colSpan={5}>{loading ? "Loading events…" : "No recent events for this service."}</td></tr>}
                 {visibleEvents.slice(0, 12).map((event) => (
                   <tr key={event.id}>
                     <td><span className={`status-pill ${event.status}`}>{event.status}</span></td>

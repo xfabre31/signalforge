@@ -104,3 +104,18 @@ def test_success_and_services_and_broadcast(client):
     client.post('/api/demo/reset')
     second = client.get('/api/incidents').json()
     assert sum(i['error_count'] for i in first) == sum(i['error_count'] for i in second) == 4
+
+
+def test_heartbeat_and_snapshot_after_disconnect(client):
+    with client.websocket_connect('/ws/events') as socket:
+        socket.send_text('ping')
+        assert socket.receive_json() == {'type': 'pong'}
+    event = post_error(client).json()
+    with client.websocket_connect('/ws/events') as socket:
+        socket.send_text('ping')
+        assert socket.receive_json() == {'type': 'pong'}
+        assert client.get('/api/events').json()[0]['id'] == event['id']
+        assert client.get('/api/summary').json()['active_incidents'] == 1
+        assert client.get('/api/incidents').json()[0]['error_count'] == 1
+    from app.main import manager
+    assert not manager.connections
